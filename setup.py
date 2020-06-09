@@ -17,7 +17,7 @@ setup(
     packages=find_packages(),
     long_description=long_description,
     long_description_content_type="text/markdown",
-    install_requires=[ "aiohttp" ],
+    install_requires=[ "aiohttp", "jmespath"],
     setup_requires=['pytest-runner'],
     tests_require=["aioresponses","pytest"],
     zip_safe=False,

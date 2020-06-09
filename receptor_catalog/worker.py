@@ -14,6 +14,7 @@ import logging
 import ssl
 import asyncio
 import aiohttp
+import jmespath
 
 
 def configure_logger():
@@ -34,6 +35,7 @@ def receptor_export(func):
 
 class Run:
     """ The Run class to execute the work recieved from the controller """
+
     VALID_POST_CODES = [200, 201, 202]
 
     def __init__(self, queue, payload, config, logger):
@@ -46,16 +48,17 @@ class Run:
         self.result_queue = queue
         self.config = config
         self.logger = logger
-        logger.debug(f"In Constructor payload: {payload}")
+
         self.href_slug = payload.pop("href_slug")
         self.method = payload.pop("method", "get").lower()
         self.fetch_all_pages = payload.pop("fetch_all_pages", False)
         if isinstance(self.fetch_all_pages, str):
             self.fetch_all_pages = strtobool(self.fetch_all_pages)
 
-        self.encoding = payload.pop("accept-encoding", None)
+        self.encoding = payload.pop("accept_encoding", None)
         self.params = payload.pop("params", {})
         self.ssl_context = None
+        self.apply_filters = payload.pop("apply_filter", None)
 
     @classmethod
     def from_raw(cls, queue, payload, plugin_config, logger):
@@ -85,7 +88,7 @@ class Run:
         """ Send an HTTP Get request to the Ansible Tower API
             supports
             Fetching all pages from the end point using fetch_all_pages = True
-            Compressing the response payload using accept-encoding = gzip
+            Compressing the response payload using accept_encoding = gzip
          """
         url_info = urlparse(url)
         params = dict(parse_qsl(url_info.query))
@@ -94,19 +97,17 @@ class Run:
             if response["status"] != 200:
                 raise Exception(f"Get failed {url} status {response['status']}")
 
-            self.logger.debug(f"Response from get_page {response}")
+            if self.apply_filters:
+                response["body"] = self.filter_body(response["body"])
+
+            self.logger.debug(f"Response from filter {response}")
             if self.encoding and self.encoding == "gzip":
                 self.result_queue.put(self.zip_json_contents(response))
             else:
                 self.result_queue.put(json.dumps(response))
 
             result = json.loads(response["body"])
-            self.logger.debug(f"Fetch all pages {self.fetch_all_pages}")
-            self.logger.debug(f"Next value {result.get('next', None)}")
             if result.get("next", None) and self.fetch_all_pages:
-                self.logger.debug(
-                    f"Getting Next Page Fetch all pages {self.fetch_all_pages}"
-                )
                 params["page"] = params.get("page", 1) + 1
             else:
                 break
@@ -116,21 +117,40 @@ class Run:
         self.logger.debug(f"Compressing response data for URL {self.href_slug}")
         return gzip.compress(json.dumps(data).encode("utf-8"))
 
+    def filter_body(self, body):
+        """ Apply JMESPath filters to the response body"""
+        self.logger.debug(f"Filtering response data for URL {self.href_slug}")
+        response_body = json.loads(body)
+
+        if isinstance(self.apply_filters, dict):
+            for key, jmes_filter in self.apply_filters.items():
+                response_body[key] = jmespath.search(jmes_filter, response_body)
+        elif isinstance(self.apply_filters, str):
+            response_body = jmespath.search(self.apply_filters, response_body)
+
+        return json.dumps(response_body)
+
     async def post(self, session, url):
         """ Post the data to the Ansible Tower """
         self.logger.debug(f"Making post request for {url} data {self.params}")
         headers = {"Content-Type": "application/json"}
         async with session.post(
             url, data=json.dumps(self.params), headers=headers, ssl=self.ssl_context
-        ) as response:
-            response_text = dict(status=response.status, body=await response.text())
-            if response_text["status"] not in self.VALID_POST_CODES:
-                raise Exception(f"Post failed {url} status {response_text['status']}")
-            self.logger.debug(f"Response from post {response_text}")
+        ) as post_response:
+            response = dict(
+                status=post_response.status, body=await post_response.text()
+            )
+
+            if response["status"] not in self.VALID_POST_CODES:
+                raise Exception(f"Post failed {url} status {response['status']}")
+
+            if self.apply_filters:
+                response["body"] = self.filter_body(response["body"])
+
             if self.encoding and self.encoding == "gzip":
-                self.result_queue.put(self.zip_json_contents(response_text))
+                self.result_queue.put(self.zip_json_contents(response))
             else:
-                self.result_queue.put(json.dumps(response_text))
+                self.result_queue.put(json.dumps(response))
 
     async def start(self):
         """ Start the asynchronous process to send requests to the tower api """
@@ -156,7 +176,7 @@ def execute(message, config, queue):
                         from the platform controller.
                         payload
                             href_slug:
-                            accept-encoding:
+                            accept_encoding:
                             params:
                             method: get|post
         :param config: is the parameters loaded from the receptor.conf for this worker.

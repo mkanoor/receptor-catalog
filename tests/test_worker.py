@@ -1,312 +1,276 @@
+""" Test Catalog Receptor Worker """
 import json
 import logging
-import os
-import pytest
 import queue
-from aioresponses import aioresponses
-from aiohttp.http_exceptions import HttpProcessingError
-from aiohttp.client_exceptions import ClientConnectionError
-from receptor_catalog import worker
 import gzip
+from aioresponses import aioresponses
+import pytest
+from receptor_catalog import worker
+from test_data import TestData
 
 
 logger = logging.getLogger(__name__)
+receptor_logger = logging.getLogger("receptor")
+receptor_logger.addHandler(logging.StreamHandler())
 
 
 class FakeMessage:
+    """ Class to create a Fake Message, that is sent from the receptor
+        to the plugin
+    """
+
     raw_payload = None
 
 
-def test_execute_get_success_with_gzip():
-    q = queue.Queue()
+def run_get(payload, response):
+    """ Run a HTTP GET Command """
     message = FakeMessage()
-    message.raw_payload = json.dumps(
-        {
-            "href_slug": "api/v2/job_templates",
-            "method": "get",
-            "fetch_all_pages": "False",
-            "accept-encoding": "gzip",
-        }
-    )
+    message.raw_payload = payload
+    response_queue = queue.Queue()
     headers = {"Content-Type": "application/json"}
-    response = dict(
-        count=28, next=None, previous=None, results=[dict(id=5, type="job_template")],
-    )
-    config = dict(
-        username="fred",
-        password="radia",
-        url="https://www.example.com",
-        validate_cert="0",
-        verify_ssl="False",
-    )
     with aioresponses() as mocked:
         mocked.get(
-            "https://www.example.com/api/v2/job_templates",
+            TestData.JOB_TEMPLATES_LIST_URL,
             status=200,
             body=json.dumps(response),
             headers=headers,
         )
-        worker.execute(message, config, q)
+        worker.execute(message, TestData.RECEPTOR_CONFIG, response_queue)
 
-    result = q.get()
+    return response_queue
+
+
+def validate_get_response(response, status, count, job_templates, keys=None):
+    """ Validate a GET Response, support filtering of keys """
+    assert (response["status"]) == status
+    json_response = json.loads(response["body"])
+    assert (json_response["count"]) == count
+    results = json_response["results"]
+    for item in results:
+        matching_item = find_by_id(item["id"], job_templates)
+        if not keys:
+            keys = list(matching_item.keys())
+        assert sorted(keys) == sorted(list(item.keys()))
+        compare(item, matching_item, keys)
+
+
+def compare(this, other, keys):
+    """ Compare if all the required keys are present in the response """
+    for key in keys:
+        assert this[key] == other[key]
+
+
+def find_by_id(object_id, items):
+    """ Find an object given its ID from a list of items """
+    for item in items:
+        if object_id == item["id"]:
+            return item
+
+    raise Exception(f"Item with {object_id} not found")
+
+
+def test_execute_get_success_with_gzip():
+    """ Test GZIP of Response Data """
+    response_queue = run_get(
+        json.dumps(TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE_GZIPPED),
+        TestData.JOB_TEMPLATE_RESPONSE,
+    )
+    result = response_queue.get()
     response = json.loads(gzip.decompress(result).decode("utf-8"))
-    assert (response["status"]) == 200
-    assert (json.loads(response["body"])["count"]) == 28
+    validate_get_response(
+        response,
+        200,
+        TestData.JOB_TEMPLATE_COUNT,
+        [TestData.JOB_TEMPLATE_1, TestData.JOB_TEMPLATE_2],
+    )
+
+
+def test_execute_get_success_with_filter_gzip():
+    """ Test GZIP of Filtered Response Data """
+    response_queue = run_get(
+        json.dumps(TestData.JOB_TEMPLATE_PAYLOAD_FILTERED_SINGLE_PAGE_GZIPPED),
+        TestData.JOB_TEMPLATE_RESPONSE,
+    )
+    result = response_queue.get()
+    response = json.loads(gzip.decompress(result).decode("utf-8"))
+    validate_get_response(
+        response,
+        200,
+        TestData.JOB_TEMPLATE_COUNT,
+        [TestData.JOB_TEMPLATE_1, TestData.JOB_TEMPLATE_2],
+        ["id", "name"],
+    )
 
 
 def test_execute_get_success_with_multiple_pages():
-    q = queue.Queue()
+    """ Test Multiple pages of response coming back """
+    response_queue = queue.Queue()
     message = FakeMessage()
-    message.raw_payload = json.dumps(
-        dict(href_slug="api/v2/job_templates", method="get", fetch_all_pages="True")
-    )
+    message.raw_payload = json.dumps(TestData.JOB_TEMPLATE_PAYLOAD_ALL_PAGES)
     headers = {"Content-Type": "application/json"}
-    response1 = dict(
-        count=2,
-        next="/api/v2/job_templates/?page=2",
-        previous=None,
-        results=[dict(id=909, type="job_template")],
-    )
-    response2 = dict(
-        count=2, next=None, previous=None, results=[dict(id=899, type="job_template")],
-    )
-    config = dict(
-        username="fred",
-        password="radia",
-        url="https://www.example.com",
-        validate_cert="0",
-        verify_ssl="False",
-    )
+
     with aioresponses() as mocked:
         mocked.get(
-            "https://www.example.com/api/v2/job_templates",
+            TestData.JOB_TEMPLATES_LIST_URL,
             status=200,
-            body=json.dumps(response1),
+            body=json.dumps(TestData.JOB_TEMPLATES_PAGE1_RESPONSE),
             headers=headers,
         )
         mocked.get(
-            "https://www.example.com/api/v2/job_templates?page=2",
+            TestData.JOB_TEMPLATES_LIST_URL_PAGE_2,
             status=200,
-            body=json.dumps(response2),
+            body=json.dumps(TestData.JOB_TEMPLATES_PAGE2_RESPONSE),
             headers=headers,
         )
-        worker.execute(message, config, q)
+        worker.execute(message, TestData.RECEPTOR_CONFIG, response_queue)
 
-    result = q.get()
-    response = json.loads(result)
-    assert (response["status"]) == 200
-    assert (json.loads(response["body"])["count"]) == 2
-    data = json.loads(response["body"])
-    assert (data["results"][0]["id"]) == 909
-    result = q.get()
-    response = json.loads(result)
-    assert (response["status"]) == 200
-    assert (json.loads(response["body"])["count"]) == 2
-    data = json.loads(response["body"])
-    assert (data["results"][0]["id"]) == 899
+    validate_get_response(
+        json.loads(response_queue.get()),
+        200,
+        TestData.JOB_TEMPLATE_COUNT,
+        [TestData.JOB_TEMPLATE_1, TestData.JOB_TEMPLATE_2],
+    )
+    validate_get_response(
+        json.loads(response_queue.get()),
+        200,
+        TestData.JOB_TEMPLATE_COUNT,
+        [TestData.JOB_TEMPLATE_3],
+    )
+
 
 def test_execute_get_exception():
-    q = queue.Queue()
+    """ When we get a bad data from the server, raise an exception """
     message = FakeMessage()
-    message.raw_payload = json.dumps(
-        dict(href_slug="api/v2/job_templates", method="get", fetch_all_pages="False")
-    )
-    headers = {"Content-Type": "application/json"}
-    response = dict(
-        count=28, next=None, previous=None, results=[dict(id=5, type="job_template")],
-    )
-    config = dict(
-        username="fred",
-        password="radia",
-        url="https://www.example.com",
-        validate_cert="0",
-        verify_ssl="False",
-    )
+    message.raw_payload = json.dumps(TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE_GZIPPED)
     with aioresponses() as mocked:
-        mocked.get(
-            "https://www.example.com/api/v2/job_templates",
-            exception=ClientConnectionError("Connection Refused"),
-        )
-    with pytest.raises(Exception):
-        worker.execute(message, config, q)
+        mocked.get(TestData.JOB_TEMPLATES_LIST_URL, status=400, body="Bad Request")
+        with pytest.raises(Exception):
+            worker.execute(message, TestData.RECEPTOR_CONFIG, queue.Queue())
 
 
 def test_execute_get_success():
-    q = queue.Queue()
-    message = FakeMessage()
-    message.raw_payload = json.dumps(
-        dict(href_slug="api/v2/job_templates", method="get", fetch_all_pages="False")
+    """ GET Request with Single Page """
+    response_queue = run_get(
+        json.dumps(TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE),
+        TestData.JOB_TEMPLATE_RESPONSE,
     )
-    headers = {"Content-Type": "application/json"}
-    response = dict(
-        count=28, next=None, previous=None, results=[dict(id=5, type="job_template")],
-    )
-    config = dict(
-        username="fred",
-        password="radia",
-        url="https://www.example.com",
-        validate_cert="0",
-        verify_ssl="False",
-    )
-    with aioresponses() as mocked:
-        mocked.get(
-            "https://www.example.com/api/v2/job_templates",
-            status=200,
-            body=json.dumps(response),
-            headers=headers,
-        )
-        worker.execute(message, config, q)
-
-    result = q.get()
+    result = response_queue.get()
     response = json.loads(result)
-    assert (response["status"]) == 200
-    assert (json.loads(response["body"])["count"]) == 28
+    validate_get_response(
+        response,
+        200,
+        TestData.JOB_TEMPLATE_COUNT,
+        [TestData.JOB_TEMPLATE_1, TestData.JOB_TEMPLATE_2],
+    )
 
 
 def test_execute_get_with_dict_payload():
-    q = queue.Queue()
-    message = FakeMessage()
-    message.raw_payload = dict(href_slug="api/v2/job_templates", method="get")
-    headers = {"Content-Type": "application/json"}
-    response = dict(
-        count=28,
-        # "next"= "/api/v2/job_templates/?page=2",
-        next=None,
-        previous=None,
-        results=[dict(id=5, type="job_template")],
+    """ GET Request with Payload as a dictionary """
+    response_queue = run_get(
+        TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE, TestData.JOB_TEMPLATE_RESPONSE
     )
-    config = dict(
-        username="fred",
-        password="radia",
-        url="http://www.example.com",
-        validate_cert="0",
-    )
-    with aioresponses() as mocked:
-        mocked.get(
-            "http://www.example.com/api/v2/job_templates",
-            status=200,
-            body=json.dumps(response),
-            headers=headers,
-        )
-        worker.execute(message, config, q)
-
-    result = q.get()
+    result = response_queue.get()
     response = json.loads(result)
-    assert (response["status"]) == 200
-    assert (json.loads(response["body"])["count"]) == 28
+    validate_get_response(
+        response,
+        200,
+        TestData.JOB_TEMPLATE_COUNT,
+        [TestData.JOB_TEMPLATE_1, TestData.JOB_TEMPLATE_2],
+    )
 
 
 def test_execute_get_with_bad_payload():
-    q = queue.Queue()
+    """ GET Request where JSON decoding fails """
     message = FakeMessage()
     message.raw_payload = "fail string"
-    config = dict(
-        username="fred",
-        password="radia",
-        url="http://www.example.com",
-        validate_cert="0",
-    )
     with pytest.raises(json.JSONDecodeError):
-        worker.execute(message, config, q)
+        worker.execute(message, TestData.RECEPTOR_CONFIG, queue.Queue())
+
+
+def run_post(payload, response):
+    """ Helper method to send a HTTP POST """
+    message = FakeMessage()
+    message.raw_payload = payload
+    response_queue = queue.Queue()
+    headers = {"Content-Type": "application/json"}
+    with aioresponses() as mocked:
+        mocked.post(
+            TestData.JOB_TEMPLATE_POST_URL,
+            status=200,
+            body=json.dumps(response),
+            headers=headers,
+        )
+        worker.execute(message, TestData.RECEPTOR_CONFIG, response_queue)
+
+    return response_queue
+
+
+def validate_post_response(response, status, job, keys=None):
+    """ Helper Method to validate HTTP POST Response """
+    assert (response["status"]) == status
+    json_response = json.loads(response["body"])
+    if not keys:
+        keys = list(job.keys())
+    assert sorted(keys) == sorted(list(json_response.keys()))
+    compare(json_response, job, keys)
 
 
 def test_execute_post_success():
-    q = queue.Queue()
-    message = FakeMessage()
-    message.raw_payload = json.dumps(
-        dict(
-            href_slug="api/v2/job_templates/909/launch",
-            method="post",
-            params=dict(name="Fred"),
-        )
+    """ HTTP POST Test """
+    response_queue = run_post(
+        json.dumps(TestData.JOB_TEMPLATE_POST_PAYLOAD),
+        TestData.JOB_TEMPLATE_POST_RESPONSE,
     )
-    headers = {"Content-Type": "application/json"}
-    response = dict(
-        count=1, next=None, previous=None, results=[dict(id=5, type="job")],
-    )
-    config = dict(
-        username="fred",
-        password="radia",
-        url="https://www.example.com",
-        validate_cert="0",
-        verify_ssl="False",
-    )
-    with aioresponses() as mocked:
-        mocked.post(
-            "https://www.example.com/api/v2/job_templates/909/launch",
-            status=200,
-            body=json.dumps(response),
-            headers=headers,
-        )
-        worker.execute(message, config, q)
-
-    result = q.get()
+    result = response_queue.get()
     response = json.loads(result)
-    assert (response["status"]) == 200
-    assert (json.loads(response["body"])["count"]) == 1
+    validate_post_response(response, 200, TestData.JOB_1)
+
 
 def test_execute_post_zip_success():
-    q = queue.Queue()
-    message = FakeMessage()
-    message.raw_payload = json.dumps(
-        {
-            "href_slug": "api/v2/job_templates/909/launch",
-            "method": "post",
-            "accept-encoding": "gzip",
-            "params": dict(name="Fred")
-        }
+    """ HTTP POST Test with Response GZIPPed """
+    response_queue = run_post(
+        json.dumps(TestData.JOB_TEMPLATE_POST_PAYLOAD_GZIPPED),
+        TestData.JOB_TEMPLATE_POST_RESPONSE,
     )
-    headers = {"Content-Type": "application/json"}
-    response = dict(
-        count=1, next=None, previous=None, results=[dict(id=5, type="job")],
-    )
-    config = dict(
-        username="fred",
-        password="radia",
-        url="https://www.example.com",
-        validate_cert="0",
-        verify_ssl="False",
-    )
-    with aioresponses() as mocked:
-        mocked.post(
-            "https://www.example.com/api/v2/job_templates/909/launch",
-            status=200,
-            body=json.dumps(response),
-            headers=headers,
-        )
-        worker.execute(message, config, q)
-
-    result = q.get()
+    result = response_queue.get()
     response = json.loads(gzip.decompress(result).decode("utf-8"))
-    assert (response["status"]) == 200
-    assert (json.loads(response["body"])["count"]) == 1
+    validate_post_response(response, 200, TestData.JOB_1)
+
+
+def test_execute_post_filtered_zip_success():
+    """ HTTP POST Test with Filtered Response GZIPPed """
+    response_queue = run_post(
+        json.dumps(TestData.JOB_TEMPLATE_POST_FILTERED_PAYLOAD_GZIPPED),
+        TestData.JOB_TEMPLATE_POST_RESPONSE,
+    )
+    result = response_queue.get()
+    response = json.loads(gzip.decompress(result).decode("utf-8"))
+    validate_post_response(response, 200, TestData.JOB_1, ["url"])
+
 
 def test_execute_post_exception():
-    q = queue.Queue()
+    """ HTTP POST Test with Exception """
+    message = FakeMessage()
+    message.raw_payload = json.dumps(TestData.JOB_TEMPLATE_POST_PAYLOAD)
+    with aioresponses() as mocked:
+        mocked.post(TestData.JOB_TEMPLATE_POST_URL, status=400, body="Bad Request")
+        with pytest.raises(Exception):
+            worker.execute(message, TestData.RECEPTOR_CONFIG, queue.Queue())
+
+
+def test_execute_post_exception_invalid_filter():
+    """ HTTP POST Test with an invalid JMESPath filter """
     message = FakeMessage()
     message.raw_payload = json.dumps(
-        dict(
-            href_slug="api/v2/job_templates/909/launch",
-            method="post",
-            params=dict(name="Fred"),
-        )
+        TestData.JOB_TEMPLATE_POST_BAD_FILTERED_PAYLOAD_GZIPPED
     )
     headers = {"Content-Type": "application/json"}
-    response = dict(
-        count=1, next=None, previous=None, results=[dict(id=5, type="job")],
-    )
-    config = dict(
-        username="fred",
-        password="radia",
-        url="https://www.example.com",
-        validate_cert="0",
-        verify_ssl="False",
-    )
     with aioresponses() as mocked:
         mocked.post(
-            "https://www.example.com/api/v2/job_templates/909/launch",
-            exception=ClientConnectionError("Connection Refused"),
+            TestData.JOB_TEMPLATE_POST_URL,
+            status=200,
+            body=json.dumps(TestData.JOB_TEMPLATE_POST_RESPONSE),
+            headers=headers,
         )
-    
-    with pytest.raises(Exception):
-        worker.execute(message, config, q)
+        with pytest.raises(Exception):
+            worker.execute(message, TestData.RECEPTOR_CONFIG, queue.Queue())
