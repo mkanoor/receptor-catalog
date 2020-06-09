@@ -44,13 +44,17 @@ To run the tests
 
 
 **Filtering Examples**
+
 Filters are based on JMESPath which allows us to search and filter out sections of JSON.
 https://jmespath.org
+
+
 When fetching an array of objects you have to specific the filter as a dictionary with the key name containing the name of the attribute.
 e.g
-**apply_filter*** ={results=**'results[].{catalog_id:id, url:url,created:created,name:name, modified:modified, playbook:playbook}'**}
+**apply_filter** ={results=**'results[].{catalog_id:id, url:url,created:created,name:name, modified:modified, playbook:playbook}'**}
 
-The response contains
+Here we are filtering the **results** key so we have to specify the filter as a dictionary. The plugin will swap out the contents of the key with the filtered results.
+The filtered response will contain
 ```
 
 {
