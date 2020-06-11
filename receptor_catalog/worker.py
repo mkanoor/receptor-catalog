@@ -168,6 +168,9 @@ class Run:
                 await self.post(session, url)
             await session.close()
 
+def run(coroutine):
+    loop = asyncio.new_event_loop()
+    return loop.run_until_complete(coroutine)
 
 @receptor_export
 def execute(message, config, queue):
@@ -200,7 +203,7 @@ def execute(message, config, queue):
     logger.debug("Parsed payload: %s", payload)
     try:
         logger.debug("Start called")
-        asyncio.run(Run.from_raw(queue, payload, config, logger).start())
+        run(Run.from_raw(queue, payload, config, logger).start())
         logger.debug("Start finished")
     except Exception as err:
         logger.exception(err)
