@@ -16,7 +16,7 @@ setup(
     url="https://github.com/mkanoor/receptor-catalog",
     license="Apache",
     packages=find_packages(),
-    description="Receptor plugin to commuicate with Ansible Tower API",
+    description="Receptor plugin to communicate with Ansible Tower API",
     long_description=long_description,
     long_description_content_type="text/markdown",
     install_requires=[ "aiohttp", "jmespath"],
