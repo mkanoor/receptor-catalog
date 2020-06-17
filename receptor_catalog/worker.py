@@ -92,7 +92,8 @@ class Run:
          """
         url_info = urlparse(url)
         params = dict(parse_qsl(url_info.query))
-        params.update(self.params)
+        if isinstance(self.params, dict):
+            params.update(self.params)
         while True:
             response = await self.get_page(session, url, params)
             if response["status"] != 200:
