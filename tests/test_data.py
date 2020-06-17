@@ -8,9 +8,9 @@ class TestData:
     JOB_TEMPLATE_ID_2 = 910
     JOB_TEMPLATE_ID_3 = 987
 
-    JOB_TEMPLATES_LIST_URL = "https://www.example.com/api/v2/job_templates"
+    JOB_TEMPLATES_LIST_URL = "https://www.example.com/api/v2/job_templates?page_size=1"
     JOB_TEMPLATES_LIST_URL_PAGE_2 = (
-        "https://www.example.com/api/v2/job_templates?page=2"
+        "https://www.example.com/api/v2/job_templates?page=2&page_size=1"
     )
     RECEPTOR_CONFIG = dict(
         username="fred",
@@ -24,6 +24,7 @@ class TestData:
         method="get",
         fetch_all_pages="False",
         accept_encoding="gzip",
+        params=dict(page_size=1),
     )
     JOB_TEMPLATE_PAYLOAD_FILTERED_SINGLE_PAGE_GZIPPED = dict(
         href_slug="api/v2/job_templates",
@@ -31,12 +32,19 @@ class TestData:
         fetch_all_pages="False",
         accept_encoding="gzip",
         apply_filter=dict(results="results[].{id: id, name:name}"),
+        params=dict(page_size=1),
     )
     JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE = dict(
-        href_slug="api/v2/job_templates", method="get", fetch_all_pages="False",
+        href_slug="api/v2/job_templates",
+        method="get",
+        fetch_all_pages="False",
+        params=dict(page_size=1),
     )
     JOB_TEMPLATE_PAYLOAD_ALL_PAGES = dict(
-        href_slug="api/v2/job_templates", method="get", fetch_all_pages="True",
+        href_slug="api/v2/job_templates",
+        method="get",
+        fetch_all_pages="True",
+        params=dict(page_size=1),
     )
     JOB_TEMPLATE_COUNT = 3
     JOB_TEMPLATE_1 = dict(

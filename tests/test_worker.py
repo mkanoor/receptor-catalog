@@ -7,6 +7,7 @@ from aioresponses import aioresponses
 import pytest
 from receptor_catalog import worker
 from test_data import TestData
+import ast
 
 
 logger = logging.getLogger(__name__)
@@ -76,7 +77,7 @@ def test_execute_get_success_with_gzip():
         TestData.JOB_TEMPLATE_RESPONSE,
     )
     result = response_queue.get()
-    response = json.loads(gzip.decompress(result).decode("utf-8"))
+    response = ast.literal_eval(gzip.decompress(result).decode("utf-8"))
     validate_get_response(
         response,
         200,
@@ -92,7 +93,7 @@ def test_execute_get_success_with_filter_gzip():
         TestData.JOB_TEMPLATE_RESPONSE,
     )
     result = response_queue.get()
-    response = json.loads(gzip.decompress(result).decode("utf-8"))
+    response = ast.literal_eval(gzip.decompress(result).decode("utf-8"))
     validate_get_response(
         response,
         200,
@@ -125,13 +126,13 @@ def test_execute_get_success_with_multiple_pages():
         worker.execute(message, TestData.RECEPTOR_CONFIG, response_queue)
 
     validate_get_response(
-        json.loads(response_queue.get()),
+        response_queue.get(),
         200,
         TestData.JOB_TEMPLATE_COUNT,
         [TestData.JOB_TEMPLATE_1, TestData.JOB_TEMPLATE_2],
     )
     validate_get_response(
-        json.loads(response_queue.get()),
+        response_queue.get(),
         200,
         TestData.JOB_TEMPLATE_COUNT,
         [TestData.JOB_TEMPLATE_3],
@@ -154,8 +155,7 @@ def test_execute_get_success():
         json.dumps(TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE),
         TestData.JOB_TEMPLATE_RESPONSE,
     )
-    result = response_queue.get()
-    response = json.loads(result)
+    response = response_queue.get()
     validate_get_response(
         response,
         200,
@@ -169,8 +169,7 @@ def test_execute_get_with_dict_payload():
     response_queue = run_get(
         TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE, TestData.JOB_TEMPLATE_RESPONSE
     )
-    result = response_queue.get()
-    response = json.loads(result)
+    response = response_queue.get()
     validate_get_response(
         response,
         200,
@@ -221,8 +220,7 @@ def test_execute_post_success():
         json.dumps(TestData.JOB_TEMPLATE_POST_PAYLOAD),
         TestData.JOB_TEMPLATE_POST_RESPONSE,
     )
-    result = response_queue.get()
-    response = json.loads(result)
+    response = response_queue.get()
     validate_post_response(response, 200, TestData.JOB_1)
 
 
@@ -233,7 +231,7 @@ def test_execute_post_zip_success():
         TestData.JOB_TEMPLATE_POST_RESPONSE,
     )
     result = response_queue.get()
-    response = json.loads(gzip.decompress(result).decode("utf-8"))
+    response = ast.literal_eval(gzip.decompress(result).decode("utf-8"))
     validate_post_response(response, 200, TestData.JOB_1)
 
 
@@ -244,7 +242,7 @@ def test_execute_post_filtered_zip_success():
         TestData.JOB_TEMPLATE_POST_RESPONSE,
     )
     result = response_queue.get()
-    response = json.loads(gzip.decompress(result).decode("utf-8"))
+    response = ast.literal_eval(gzip.decompress(result).decode("utf-8"))
     validate_post_response(response, 200, TestData.JOB_1, ["url"])
 
 

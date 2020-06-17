@@ -92,6 +92,7 @@ class Run:
          """
         url_info = urlparse(url)
         params = dict(parse_qsl(url_info.query))
+        params.update(self.params)
         while True:
             response = await self.get_page(session, url, params)
             if response["status"] != 200:
@@ -104,11 +105,14 @@ class Run:
             if self.encoding and self.encoding == "gzip":
                 self.result_queue.put(self.zip_json_contents(response))
             else:
-                self.result_queue.put(json.dumps(response))
+                self.result_queue.put(response)
 
-            result = json.loads(response["body"])
-            if result.get("next", None) and self.fetch_all_pages:
-                params["page"] = params.get("page", 1) + 1
+            if self.fetch_all_pages:
+                result = json.loads(response["body"])
+                if result.get("next", None):
+                    params["page"] = params.get("page", 1) + 1
+                else:
+                    break
             else:
                 break
 
@@ -150,7 +154,7 @@ class Run:
             if self.encoding and self.encoding == "gzip":
                 self.result_queue.put(self.zip_json_contents(response))
             else:
-                self.result_queue.put(json.dumps(response))
+                self.result_queue.put(response)
 
     async def start(self):
         """ Start the asynchronous process to send requests to the tower api """
@@ -168,9 +172,11 @@ class Run:
                 await self.post(session, url)
             await session.close()
 
+
 def run(coroutine):
     loop = asyncio.new_event_loop()
     return loop.run_until_complete(coroutine)
+
 
 @receptor_export
 def execute(message, config, queue):
