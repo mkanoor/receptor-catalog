@@ -19,6 +19,12 @@ class TestData:
         validate_cert="0",
         verify_ssl="False",
     )
+    RECEPTOR_CONFIG_WITH_TOKEN = dict(
+        token="cafebeef",
+        url="https://www.example.com",
+        validate_cert="0",
+        verify_ssl="False",
+    )
     JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE_GZIPPED = dict(
         href_slug="api/v2/job_templates",
         method="get",

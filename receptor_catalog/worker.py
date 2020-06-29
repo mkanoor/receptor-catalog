@@ -176,7 +176,8 @@ class Run:
 
 def run(coroutine):
     loop = asyncio.new_event_loop()
-    return loop.run_until_complete(coroutine)
+    loop.run_until_complete(coroutine)
+    return loop.run_until_complete(asyncio.sleep(0.250))
 
 
 @receptor_export

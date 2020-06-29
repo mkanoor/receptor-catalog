@@ -22,8 +22,7 @@ class FakeMessage:
 
     raw_payload = None
 
-
-def run_get(payload, response):
+def run_get(config, payload, response):
     """ Run a HTTP GET Command """
     message = FakeMessage()
     message.raw_payload = payload
@@ -36,7 +35,7 @@ def run_get(payload, response):
             body=json.dumps(response),
             headers=headers,
         )
-        worker.execute(message, TestData.RECEPTOR_CONFIG, response_queue)
+        worker.execute(message, config, response_queue)
 
     return response_queue
 
@@ -73,6 +72,7 @@ def find_by_id(object_id, items):
 def test_execute_get_success_with_gzip():
     """ Test GZIP of Response Data """
     response_queue = run_get(
+        TestData.RECEPTOR_CONFIG,
         json.dumps(TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE_GZIPPED),
         TestData.JOB_TEMPLATE_RESPONSE,
     )
@@ -89,6 +89,7 @@ def test_execute_get_success_with_gzip():
 def test_execute_get_success_with_filter_gzip():
     """ Test GZIP of Filtered Response Data """
     response_queue = run_get(
+        TestData.RECEPTOR_CONFIG,
         json.dumps(TestData.JOB_TEMPLATE_PAYLOAD_FILTERED_SINGLE_PAGE_GZIPPED),
         TestData.JOB_TEMPLATE_RESPONSE,
     )
@@ -152,6 +153,7 @@ def test_execute_get_exception():
 def test_execute_get_success():
     """ GET Request with Single Page """
     response_queue = run_get(
+        TestData.RECEPTOR_CONFIG,
         json.dumps(TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE),
         TestData.JOB_TEMPLATE_RESPONSE,
     )
@@ -167,6 +169,7 @@ def test_execute_get_success():
 def test_execute_get_with_dict_payload():
     """ GET Request with Payload as a dictionary """
     response_queue = run_get(
+        TestData.RECEPTOR_CONFIG,
         TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE, TestData.JOB_TEMPLATE_RESPONSE
     )
     response = response_queue.get()
