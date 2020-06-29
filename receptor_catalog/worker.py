@@ -16,7 +16,6 @@ import asyncio
 import aiohttp
 import jmespath
 
-
 def configure_logger():
     """ Configure the logger """
     logger = logging.getLogger(__name__)
@@ -177,7 +176,8 @@ class Run:
 def run(coroutine):
     loop = asyncio.new_event_loop()
     loop.run_until_complete(coroutine)
-    return loop.run_until_complete(asyncio.sleep(0.250))
+    loop.run_until_complete(asyncio.sleep(0.250))
+    return loop.close()
 
 
 @receptor_export
