@@ -170,7 +170,6 @@ class Run:
                 await self.get(session, url)
             elif self.method == "post":
                 await self.post(session, url)
-            await session.close()
 
 
 def run(coroutine):
