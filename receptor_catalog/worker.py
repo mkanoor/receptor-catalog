@@ -157,16 +157,32 @@ class Run:
             else:
                 self.result_queue.put(response)
 
+    def auth_headers(self):
+        """ Create proper authentication headers based on Basic Auth or Token """
+        headers = {}
+        if len(self.config.get("token", "")) > 0:
+            headers["Authorization"] = "Bearer " + self.config["token"]
+        elif (
+            len(self.config.get("username", "")) > 0
+            and len(self.config.get("password", "")) > 0
+        ):
+            auth = aiohttp.BasicAuth(self.config["username"], self.config["password"])
+            headers["Authorization"] = auth.encode()
+        else:
+            raise Exception(
+                "Either token or username and password needs to be set in the receptor.conf"
+            )
+
+        return headers
+
     async def start(self):
         """ Start the asynchronous process to send requests to the tower api """
-        auth = aiohttp.BasicAuth(self.config["username"], self.config["password"])
-        headers = {}
         url = urljoin(self.config["url"], self.href_slug)
 
         if url.startswith("https"):
             self.initialize_ssl()
 
-        async with aiohttp.ClientSession(headers=headers, auth=auth) as session:
+        async with aiohttp.ClientSession(headers=self.auth_headers()) as session:
             if self.method == "get":
                 await self.get(session, url)
             elif self.method == "post":

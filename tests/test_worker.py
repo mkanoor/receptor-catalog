@@ -3,11 +3,11 @@ import json
 import logging
 import queue
 import gzip
+import ast
 from aioresponses import aioresponses
 import pytest
 from receptor_catalog import worker
 from test_data import TestData
-import ast
 
 
 logger = logging.getLogger(__name__)
@@ -21,6 +21,7 @@ class FakeMessage:
     """
 
     raw_payload = None
+
 
 def run_get(config, payload, response):
     """ Run a HTTP GET Command """
@@ -73,6 +74,23 @@ def test_execute_get_success_with_gzip():
     """ Test GZIP of Response Data """
     response_queue = run_get(
         TestData.RECEPTOR_CONFIG,
+        json.dumps(TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE_GZIPPED),
+        TestData.JOB_TEMPLATE_RESPONSE,
+    )
+    result = response_queue.get()
+    response = ast.literal_eval(gzip.decompress(result).decode("utf-8"))
+    validate_get_response(
+        response,
+        200,
+        TestData.JOB_TEMPLATE_COUNT,
+        [TestData.JOB_TEMPLATE_1, TestData.JOB_TEMPLATE_2],
+    )
+
+
+def test_execute_get_success_with_gzip_and_token():
+    """ Test GZIP of Response Data with auth based on token"""
+    response_queue = run_get(
+        TestData.RECEPTOR_CONFIG_WITH_TOKEN,
         json.dumps(TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE_GZIPPED),
         TestData.JOB_TEMPLATE_RESPONSE,
     )
@@ -150,6 +168,16 @@ def test_execute_get_exception():
             worker.execute(message, TestData.RECEPTOR_CONFIG, queue.Queue())
 
 
+def test_execute_with_invalid_config_get_exception():
+    """ When we have bad config raise an exception """
+    message = FakeMessage()
+    message.raw_payload = json.dumps(TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE_GZIPPED)
+    with aioresponses():
+        with pytest.raises(Exception) as excinfo:
+            worker.execute(message, TestData.RECEPTOR_CONFIG_INVALID, queue.Queue())
+        assert "token or username and password" in str(excinfo.value)
+
+
 def test_execute_get_success():
     """ GET Request with Single Page """
     response_queue = run_get(
@@ -170,7 +198,8 @@ def test_execute_get_with_dict_payload():
     """ GET Request with Payload as a dictionary """
     response_queue = run_get(
         TestData.RECEPTOR_CONFIG,
-        TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE, TestData.JOB_TEMPLATE_RESPONSE
+        TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE,
+        TestData.JOB_TEMPLATE_RESPONSE,
     )
     response = response_queue.get()
     validate_get_response(
