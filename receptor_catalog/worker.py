@@ -193,7 +193,12 @@ def run(coroutine):
     """ Run the worker """
     loop = asyncio.new_event_loop()
     loop.run_until_complete(coroutine)
+    # This hack is the recommended approach for graceful shutdown
+    # https://docs.aiohttp.org/en/stable/client_advanced.html#graceful-shutdown
+    # https://github.com/aio-libs/aiohttp/issues/1925
+    # Without this hack in place sockets go into CLOSE_WAIT state
     loop.run_until_complete(asyncio.sleep(0.250))
+
     return loop.close()
 
 
