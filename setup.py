@@ -20,7 +20,6 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     install_requires=[ "aiohttp", "jmespath"],
-    setup_requires=['pytest-runner'],
     tests_require=["aioresponses","pytest"],
     zip_safe=False,
     entry_points={"receptor.worker": "receptor_catalog = receptor_catalog.worker"},
