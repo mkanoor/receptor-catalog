@@ -8,4 +8,5 @@ install:
   - pip install -r requirements-test.txt
   - python setup.py install
 script:
-  - pytest
+  - coverage run -m pytest
+  - coverage report
