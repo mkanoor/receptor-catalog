@@ -4,13 +4,11 @@ Receptor Catalog Worker Plugin
 This plugin allows the receptor node to send HTTP **GET** and **POST** requests
 to Ansible Tower.
 
-The config file on the receptor for this plugin should have the following values defined in the receptor.conf
+The config file on the receptor for this plugin should have the following values defined in the **/etc/receptor/rh_ansible_tower/receptor.conf**
 
 ```
 [plugin_receptor_catalog]
-debug=True
-username=admin
-password=******
+token=your_ansible_application_token
 url=https://your_ansible_tower/
 verify_ssl=False
 ```
