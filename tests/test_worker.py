@@ -163,9 +163,12 @@ def test_execute_get_exception():
     message = FakeMessage()
     message.raw_payload = json.dumps(TestData.JOB_TEMPLATE_PAYLOAD_SINGLE_PAGE_GZIPPED)
     with aioresponses() as mocked:
-        mocked.get(TestData.JOB_TEMPLATES_LIST_URL, status=400, body="Bad Request")
-        with pytest.raises(Exception):
+        mocked.get(
+            TestData.JOB_TEMPLATES_LIST_URL, status=400, body="Bad Request in Get Call"
+        )
+        with pytest.raises(Exception) as excinfo:
             worker.execute(message, TestData.RECEPTOR_CONFIG, queue.Queue())
+        assert "Bad Request in Get Call" in str(excinfo.value)
 
 
 def test_execute_with_invalid_config_get_exception():
@@ -283,9 +286,12 @@ def test_execute_post_exception():
     message = FakeMessage()
     message.raw_payload = json.dumps(TestData.JOB_TEMPLATE_POST_PAYLOAD)
     with aioresponses() as mocked:
-        mocked.post(TestData.JOB_TEMPLATE_POST_URL, status=400, body="Bad Request")
-        with pytest.raises(Exception):
+        mocked.post(
+            TestData.JOB_TEMPLATE_POST_URL, status=400, body="Bad Request in Post Call"
+        )
+        with pytest.raises(Exception) as excinfo:
             worker.execute(message, TestData.RECEPTOR_CONFIG, queue.Queue())
+        assert "Bad Request in Post Call" in str(excinfo.value)
 
 
 def test_execute_post_exception_invalid_filter():

@@ -97,7 +97,9 @@ class Run:
         while True:
             response = await self.get_page(session, url, params)
             if response["status"] != 200:
-                raise Exception(f"Get failed {url} status {response['status']}")
+                raise Exception(
+                    f"Get failed {url} status {response['status']} body {response.get('body','empty')}"
+                )
 
             if self.apply_filters:
                 response["body"] = self.filter_body(response["body"])
@@ -147,7 +149,9 @@ class Run:
             )
 
             if response["status"] not in self.VALID_POST_CODES:
-                raise Exception(f"Post failed {url} status {response['status']}")
+                raise Exception(
+                    f"Post failed {url} status {response['status']} body {response.get('body', 'empty')}"
+                )
 
             if self.apply_filters:
                 response["body"] = self.filter_body(response["body"])
