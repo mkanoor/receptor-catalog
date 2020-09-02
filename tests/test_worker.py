@@ -310,3 +310,73 @@ def test_execute_post_exception_invalid_filter():
         )
         with pytest.raises(Exception):
             worker.execute(message, TestData.RECEPTOR_CONFIG, queue.Queue())
+
+
+def test_execute_monitor_job_success():
+    """ Test to Monitor completion of job"""
+    response_queue = queue.Queue()
+    message = FakeMessage()
+    message.raw_payload = json.dumps(TestData.JOB_MONITOR_PAYLOAD)
+    headers = {"Content-Type": "application/json"}
+
+    with aioresponses() as mocked:
+        mocked.get(
+            TestData.JOB_MONITOR_URL,
+            status=200,
+            body=json.dumps(TestData.JOB_1_RUNNING),
+            headers=headers,
+        )
+        mocked.get(
+            TestData.JOB_MONITOR_URL,
+            status=200,
+            body=json.dumps(TestData.JOB_1_SUCCESSFUL),
+            headers=headers,
+        )
+        worker.execute(message, TestData.RECEPTOR_CONFIG, response_queue)
+
+    response = response_queue.get()
+    assert (response["status"]) == 200
+    json_response = json.loads(response["body"])
+    assert (json_response["status"]) == "successful"
+
+
+def test_execute_monitor_job_zip_success():
+    """ Test to Monitor completion of job"""
+    response_queue = queue.Queue()
+    message = FakeMessage()
+    message.raw_payload = json.dumps(TestData.JOB_MONITOR_GZIP_PAYLOAD)
+    headers = {"Content-Type": "application/json"}
+
+    with aioresponses() as mocked:
+        mocked.get(
+            TestData.JOB_MONITOR_URL,
+            status=200,
+            body=json.dumps(TestData.JOB_1_RUNNING),
+            headers=headers,
+        )
+        mocked.get(
+            TestData.JOB_MONITOR_URL,
+            status=200,
+            body=json.dumps(TestData.JOB_1_SUCCESSFUL),
+            headers=headers,
+        )
+        worker.execute(message, TestData.RECEPTOR_CONFIG, response_queue)
+
+    result = response_queue.get()
+    response = ast.literal_eval(gzip.decompress(result).decode("utf-8"))
+    assert (response["status"]) == 200
+    json_response = json.loads(response["body"])
+    assert (json_response["status"]) == "successful"
+
+
+def test_execute_monitor_exception():
+    """ HTTP POST Test with Exception """
+    message = FakeMessage()
+    message.raw_payload = json.dumps(TestData.JOB_MONITOR_GZIP_PAYLOAD)
+    with aioresponses() as mocked:
+        mocked.get(
+            TestData.JOB_MONITOR_URL, status=400, body="Bad Request in Monitor Call"
+        )
+        with pytest.raises(Exception) as excinfo:
+            worker.execute(message, TestData.RECEPTOR_CONFIG, queue.Queue())
+        assert "Bad Request in Monitor Call" in str(excinfo.value)

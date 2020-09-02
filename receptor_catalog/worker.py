@@ -37,6 +37,8 @@ class Run:
     """ The Run class to execute the work recieved from the controller """
 
     VALID_POST_CODES = [200, 201, 202]
+    JOB_COMPLETION_STATUSES = ["successful", "failed", "error", "canceled"]
+    DEFAULT_REFRESH_INTERVAL = 10
 
     def __init__(self, queue, payload, config, logger):
         """ Initialize a Run instance with the following
@@ -59,6 +61,9 @@ class Run:
         self.params = payload.pop("params", {})
         self.ssl_context = None
         self.apply_filters = payload.pop("apply_filter", None)
+        self.refresh_interval_seconds = payload.pop(
+            "refresh_interval_seconds", self.DEFAULT_REFRESH_INTERVAL
+        )
 
     @classmethod
     def from_raw(cls, queue, payload, plugin_config, logger):
@@ -137,6 +142,36 @@ class Run:
 
         return json.dumps(response_body)
 
+    async def monitor(self, session, url):
+        """ Monitor a Ansible Tower Job """
+        self.logger.debug(f"Monitor Job {url} data {self.params}")
+        url_info = urlparse(url)
+        params = dict(parse_qsl(url_info.query))
+        if isinstance(self.params, dict):
+            params.update(self.params)
+        while True:
+            response = await self.get_page(session, url, params)
+            if response["status"] != 200:
+                raise Exception(
+                    f"Get failed {url} status {response['status']} body {response.get('body','empty')}"
+                )
+
+            result = json.loads(response["body"])
+            if result["status"] not in self.JOB_COMPLETION_STATUSES:
+                await asyncio.sleep(self.refresh_interval_seconds)
+                continue
+
+            if self.apply_filters:
+                response["body"] = self.filter_body(response["body"])
+
+            self.logger.debug(f"Response from filter {response}")
+            if self.encoding and self.encoding == "gzip":
+                self.result_queue.put(self.zip_json_contents(response))
+            else:
+                self.result_queue.put(response)
+
+            break
+
     async def post(self, session, url):
         """ Post the data to the Ansible Tower """
         self.logger.debug(f"Making post request for {url} data {self.params}")
@@ -191,6 +226,8 @@ class Run:
                 await self.get(session, url)
             elif self.method == "post":
                 await self.post(session, url)
+            elif self.method == "monitor":
+                await self.monitor(session, url)
 
 
 def run(coroutine):

@@ -111,8 +111,46 @@ class TestData:
         apply_filter="[]jaj0[1]",
     )
     JOB_ID_1 = 500
+    JOB_STATUS_RUNNING = "running"
+    JOB_STATUS_FAILED = "failed"
+    JOB_STATUS_SUCCESSFUL = "successful"
     JOB_TEMPLATE_POST_RESPONSE = dict(
-        job=JOB_ID_1, url="/job/1", playbook="hello_world.yml"
+        job=JOB_ID_1,
+        url="/job/1",
+        playbook="hello_world.yml",
+        status=JOB_STATUS_SUCCESSFUL,
     )
-
-    JOB_1 = dict(job=JOB_ID_1, url="/job/1", playbook="hello_world.yml")
+    JOB_1 = dict(
+        job=JOB_ID_1,
+        url="/job/1",
+        playbook="hello_world.yml",
+        status=JOB_STATUS_SUCCESSFUL,
+    )
+    JOB_1_RUNNING = dict(
+        job=JOB_ID_1,
+        url="/job/1",
+        playbook="hello_world.yml",
+        status=JOB_STATUS_RUNNING,
+    )
+    JOB_1_SUCCESSFUL = dict(
+        job=JOB_ID_1,
+        url="/job/1",
+        playbook="hello_world.yml",
+        status=JOB_STATUS_SUCCESSFUL,
+    )
+    JOB_MONITOR_URL = f"https://www.example.com/api/v2/jobs/{JOB_ID_1}"
+    JOB_MONITOR_GZIP_PAYLOAD = dict(
+        href_slug=f"/api/v2/jobs/{JOB_ID_1}",
+        method="monitor",
+        accept_encoding="gzip",
+        params={},
+        refresh_interval_seconds=1,
+        apply_filter="{url:url, id:id, status:status, playbook:playbook}",
+    )
+    JOB_MONITOR_PAYLOAD = dict(
+        href_slug=f"/api/v2/jobs/{JOB_ID_1}",
+        method="monitor",
+        params={},
+        refresh_interval_seconds=1,
+        apply_filter="{url:url, id:id, status:status, playbook:playbook}",
+    )
