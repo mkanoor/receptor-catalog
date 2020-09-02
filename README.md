@@ -15,10 +15,11 @@ verify_ssl=False
 
 The payload supported by the plugin contains
 
- 1. **method:** GET|POST
+ 1. **method:** GET|POST|MONITOR
  2. **href_slug**: the href to the resource or collection e.g api/v2/job_templates/
  3. **accept_encoding** *{Optional}*: gzip
  4. **fetch_all_pages** *{Optional}*: True|False 
+ 4. **refresh_interval_seconds** *{Optional}*: 30 (default: 10)
  5. **params**: Extra query or post parameters as a hash/dictionary
  6. **apply_filter** *{Optional}*: A JMESPath search string to limit the amount of data that is returned. The filter can be specified as a hash/dictionary or as a string. The hash is used when filtering responses from a list call when the response contains an array of objects. The string filter is used when dealing with a single object.
 
