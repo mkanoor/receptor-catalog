@@ -338,6 +338,9 @@ def test_execute_monitor_job_success():
     assert (response["status"]) == 200
     json_response = json.loads(response["body"])
     assert (json_response["status"]) == "successful"
+    assert len(json_response["artifacts"].keys()) > 0
+    for key in json_response["artifacts"].keys():
+        assert key.startswith(TestData.ARTIFACTS_KEY_PREFIX)
 
 
 def test_execute_monitor_job_zip_success():
@@ -367,6 +370,9 @@ def test_execute_monitor_job_zip_success():
     assert (response["status"]) == 200
     json_response = json.loads(response["body"])
     assert (json_response["status"]) == "successful"
+    assert len(json_response["artifacts"].keys()) > 0
+    for key in json_response["artifacts"].keys():
+        assert key.startswith(TestData.ARTIFACTS_KEY_PREFIX)
 
 
 def test_execute_monitor_exception():
@@ -380,3 +386,22 @@ def test_execute_monitor_exception():
         with pytest.raises(Exception) as excinfo:
             worker.execute(message, TestData.RECEPTOR_CONFIG, queue.Queue())
         assert "Bad Request in Monitor Call" in str(excinfo.value)
+
+
+def test_execute_monitor_job_huge_artifact():
+    """ Test to Monitor completion of job with huge artifacts"""
+    response_queue = queue.Queue()
+    message = FakeMessage()
+    message.raw_payload = json.dumps(TestData.JOB_MONITOR_GZIP_PAYLOAD)
+    headers = {"Content-Type": "application/json"}
+
+    with aioresponses() as mocked:
+        mocked.get(
+            TestData.JOB_MONITOR_URL,
+            status=200,
+            body=json.dumps(TestData.JOB_1_SUCCESSFUL_HUGE),
+            headers=headers,
+        )
+        with pytest.raises(Exception) as excinfo:
+            worker.execute(message, TestData.RECEPTOR_CONFIG, queue.Queue())
+        assert "Artifacts is over 1024 bytes" in str(excinfo.value)

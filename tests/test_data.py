@@ -7,6 +7,7 @@ class TestData:
     JOB_TEMPLATE_ID_1 = 909
     JOB_TEMPLATE_ID_2 = 910
     JOB_TEMPLATE_ID_3 = 987
+    ARTIFACTS_KEY_PREFIX = "expose_to_cloud_redhat_com"
 
     JOB_TEMPLATES_LIST_URL = "https://www.example.com/api/v2/job_templates?page_size=1"
     JOB_TEMPLATES_LIST_URL_PAGE_2 = (
@@ -114,17 +115,26 @@ class TestData:
     JOB_STATUS_RUNNING = "running"
     JOB_STATUS_FAILED = "failed"
     JOB_STATUS_SUCCESSFUL = "successful"
+    JOB_ARTIFACTS = {
+        f"{ARTIFACTS_KEY_PREFIX}_snow_ticket": 12345,
+        "fred": 45,
+        "barney": 90,
+    }
+    JOB_ARTIFACTS_HUGE = {f"{ARTIFACTS_KEY_PREFIX}_snow_details": "f" * 1096}
     JOB_TEMPLATE_POST_RESPONSE = dict(
         job=JOB_ID_1,
         url="/job/1",
         playbook="hello_world.yml",
         status=JOB_STATUS_SUCCESSFUL,
+        artifacts=JOB_ARTIFACTS,
     )
+    FILTERED_JOB_ARTIFACTS = {f"{ARTIFACTS_KEY_PREFIX}_snow_ticket": 12345}
     JOB_1 = dict(
         job=JOB_ID_1,
         url="/job/1",
         playbook="hello_world.yml",
         status=JOB_STATUS_SUCCESSFUL,
+        artifacts=FILTERED_JOB_ARTIFACTS,
     )
     JOB_1_RUNNING = dict(
         job=JOB_ID_1,
@@ -137,6 +147,14 @@ class TestData:
         url="/job/1",
         playbook="hello_world.yml",
         status=JOB_STATUS_SUCCESSFUL,
+        artifacts=JOB_ARTIFACTS,
+    )
+    JOB_1_SUCCESSFUL_HUGE = dict(
+        job=JOB_ID_1,
+        url="/job/1",
+        playbook="hello_world.yml",
+        status=JOB_STATUS_SUCCESSFUL,
+        artifacts=JOB_ARTIFACTS_HUGE,
     )
     JOB_MONITOR_URL = f"https://www.example.com/api/v2/jobs/{JOB_ID_1}"
     JOB_MONITOR_GZIP_PAYLOAD = dict(
@@ -145,12 +163,12 @@ class TestData:
         accept_encoding="gzip",
         params={},
         refresh_interval_seconds=1,
-        apply_filter="{url:url, id:id, status:status, playbook:playbook}",
+        apply_filter="{url:url, id:id, status:status, playbook:playbook, artifacts:artifacts}",
     )
     JOB_MONITOR_PAYLOAD = dict(
         href_slug=f"/api/v2/jobs/{JOB_ID_1}",
         method="monitor",
         params={},
         refresh_interval_seconds=1,
-        apply_filter="{url:url, id:id, status:status, playbook:playbook}",
+        apply_filter="{url:url, id:id, status:status, playbook:playbook, artifacts:artifacts}",
     )

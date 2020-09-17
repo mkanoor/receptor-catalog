@@ -39,6 +39,8 @@ class Run:
     VALID_POST_CODES = [200, 201, 202]
     JOB_COMPLETION_STATUSES = ["successful", "failed", "error", "canceled"]
     DEFAULT_REFRESH_INTERVAL = 10
+    ARTIFACTS_KEY_PREFIX = "expose_to_cloud_redhat_com"
+    MAX_ARTIFACTS_SIZE = 1024
 
     def __init__(self, queue, payload, config, logger):
         """ Initialize a Run instance with the following
@@ -105,42 +107,63 @@ class Run:
                 raise Exception(
                     f"Get failed {url} status {response['status']} body {response.get('body','empty')}"
                 )
-
-            if self.apply_filters:
-                response["body"] = self.filter_body(response["body"])
+            json_body = json.loads(response["body"])
+            json_body = self.reconstitute_body(json_body)
+            response["body"] = json.dumps(json_body)
 
             self.logger.debug(f"Response from filter {response}")
-            if self.encoding and self.encoding == "gzip":
-                self.result_queue.put(self.zip_json_contents(response))
-            else:
-                self.result_queue.put(response)
+            self.send_response(response)
 
             if self.fetch_all_pages:
-                result = json.loads(response["body"])
-                if result.get("next", None):
+                if json_body.get("next", None):
                     params["page"] = params.get("page", 1) + 1
                 else:
                     break
             else:
                 break
 
+    def reconstitute_body(self, json_body):
+        if self.apply_filters:
+            json_body = self.filter_body(json_body)
+
+        if isinstance(json_body.get("artifacts", None), dict):
+            json_body = self.filter_artifacts(json_body)
+
+        return json_body
+
+    def send_response(self, response):
+        if self.encoding and self.encoding == "gzip":
+            self.result_queue.put(self.zip_json_contents(response))
+        else:
+            self.result_queue.put(response)
+
     def zip_json_contents(self, data):
         """ Compress the data using gzip """
         self.logger.debug(f"Compressing response data for URL {self.href_slug}")
         return gzip.compress(json.dumps(data).encode("utf-8"))
 
-    def filter_body(self, body):
-        """ Apply JMESPath filters to the response body"""
+    def filter_body(self, json_body):
+        """ Apply JMESPath filters to the json body"""
         self.logger.debug(f"Filtering response data for URL {self.href_slug}")
-        response_body = json.loads(body)
-
         if isinstance(self.apply_filters, dict):
             for key, jmes_filter in self.apply_filters.items():
-                response_body[key] = jmespath.search(jmes_filter, response_body)
+                json_body[key] = jmespath.search(jmes_filter, json_body)
         elif isinstance(self.apply_filters, str):
-            response_body = jmespath.search(self.apply_filters, response_body)
+            json_body = jmespath.search(self.apply_filters, json_body)
 
-        return json.dumps(response_body)
+        return json_body
+
+    def filter_artifacts(self, json_body):
+        artifacts = {}
+        for key in json_body["artifacts"]:
+            if key.startswith(self.ARTIFACTS_KEY_PREFIX):
+                artifacts[key] = json_body["artifacts"][key]
+
+        if len(json.dumps(artifacts)) > self.MAX_ARTIFACTS_SIZE:
+            raise Exception(f"Artifacts is over {self.MAX_ARTIFACTS_SIZE} bytes")
+
+        json_body["artifacts"] = artifacts
+        return json_body
 
     async def monitor(self, session, url):
         """ Monitor a Ansible Tower Job """
@@ -156,20 +179,16 @@ class Run:
                     f"Get failed {url} status {response['status']} body {response.get('body','empty')}"
                 )
 
-            result = json.loads(response["body"])
-            if result["status"] not in self.JOB_COMPLETION_STATUSES:
+            json_body = json.loads(response["body"])
+            if json_body["status"] not in self.JOB_COMPLETION_STATUSES:
                 await asyncio.sleep(self.refresh_interval_seconds)
                 continue
 
-            if self.apply_filters:
-                response["body"] = self.filter_body(response["body"])
+            json_body = self.reconstitute_body(json_body)
+            response["body"] = json.dumps(json_body)
 
             self.logger.debug(f"Response from filter {response}")
-            if self.encoding and self.encoding == "gzip":
-                self.result_queue.put(self.zip_json_contents(response))
-            else:
-                self.result_queue.put(response)
-
+            self.send_response(response)
             break
 
     async def post(self, session, url):
@@ -188,13 +207,12 @@ class Run:
                     f"Post failed {url} status {response['status']} body {response.get('body', 'empty')}"
                 )
 
-            if self.apply_filters:
-                response["body"] = self.filter_body(response["body"])
+            json_body = json.loads(response["body"])
+            json_body = self.reconstitute_body(json_body)
+            response["body"] = json.dumps(json_body)
 
-            if self.encoding and self.encoding == "gzip":
-                self.result_queue.put(self.zip_json_contents(response))
-            else:
-                self.result_queue.put(response)
+            self.logger.debug(f"Response from filter {response}")
+            self.send_response(response)
 
     def auth_headers(self):
         """ Create proper authentication headers based on Basic Auth or Token """
