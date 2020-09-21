@@ -39,7 +39,7 @@ class Run:
     VALID_POST_CODES = [200, 201, 202]
     JOB_COMPLETION_STATUSES = ["successful", "failed", "error", "canceled"]
     DEFAULT_REFRESH_INTERVAL = 10
-    ARTIFACTS_KEY_PREFIX = "expose_to_cloud_redhat_com"
+    ARTIFACTS_KEY_PREFIX = "expose_to_cloud_redhat_com_"
     MAX_ARTIFACTS_SIZE = 1024
 
     def __init__(self, queue, payload, config, logger):

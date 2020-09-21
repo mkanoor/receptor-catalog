@@ -7,7 +7,7 @@ class TestData:
     JOB_TEMPLATE_ID_1 = 909
     JOB_TEMPLATE_ID_2 = 910
     JOB_TEMPLATE_ID_3 = 987
-    ARTIFACTS_KEY_PREFIX = "expose_to_cloud_redhat_com"
+    ARTIFACTS_KEY_PREFIX = "expose_to_cloud_redhat_com_"
 
     JOB_TEMPLATES_LIST_URL = "https://www.example.com/api/v2/job_templates?page_size=1"
     JOB_TEMPLATES_LIST_URL_PAGE_2 = (
